@@ -71,25 +71,28 @@ def read_conll_file(data, path):
                             cur_doc['mentions'].append(new_ment)
 
     # merge with data
+    # also deal with overlapping mentions that were removed in conll files
     rmpunc = re.compile('[\W]+')
     for doc_name, content in data.items():
-        conll_doc = conll[doc_name.split()[0]]
+        conll_doc = conll.get(doc_name.split()[0], None)
+
+        if conll_doc is not None:
+            m_id_to_del = []
+            for i, m in enumerate(content):
+                mention = m['mention']
+                gold = m['gold']
+                for cur_conll_m in conll_doc['mentions']:
+                    cur_conll_mention = ' '.join(conll_doc['sentences'][cur_conll_m['sent_id']][cur_conll_m['start']:cur_conll_m['end']])
+                    if rmpunc.sub('', cur_conll_mention.lower()) == rmpunc.sub('', mention.lower()):
+                        m['conll_m'] = cur_conll_m
+                        break
+                if 'conll_m' not in m:
+                    m_id_to_del.append(i)
+            m_id_to_del.sort(reverse=True)
+            for i in m_id_to_del:
+                del data[doc_name][i]
+
         content[0]['conll_doc'] = conll_doc
-
-        cur_conll_m_id = 0
-        for m in content:
-            mention = m['mention']
-            gold = m['gold']
-
-            while True:
-                cur_conll_m = conll_doc['mentions'][cur_conll_m_id]
-                cur_conll_mention = ' '.join(conll_doc['sentences'][cur_conll_m['sent_id']][cur_conll_m['start']:cur_conll_m['end']])
-                if rmpunc.sub('', cur_conll_mention.lower()) == rmpunc.sub('', mention.lower()):
-                    m['conll_m'] = cur_conll_m
-                    cur_conll_m_id += 1
-                    break
-                else:
-                    cur_conll_m_id += 1
 
     return data
 
@@ -219,6 +222,7 @@ class CoNLLDataset:
         self.msnbc = read_csv_file(path + '/wned-msnbc.csv')
         self.wikipedia = read_csv_file(path + '/wned-wikipedia.csv')
         self.wikipedia.pop('Jiří_Třanovský Jiří_Třanovský', None)
+        self.tac2014 = read_csv_file(path + '/tac-kbp-2014.csv')
 
         print('process coref')
         person_names = load_person_names(person_path)
@@ -230,6 +234,7 @@ class CoNLLDataset:
         with_coref(self.clueweb, person_names)
         with_coref(self.msnbc, person_names)
         with_coref(self.wikipedia, person_names)
+        with_coref(self.tac2014, person_names)
 
         print('load conll')
         read_conll_file(self.train, conll_path + '/AIDA/aida_train.txt')
@@ -240,6 +245,7 @@ class CoNLLDataset:
         read_conll_file(self.msnbc, conll_path + '/wned-datasets/msnbc/msnbc.conll')
         read_conll_file(self.clueweb, conll_path + '/wned-datasets/clueweb/clueweb.conll')
         read_conll_file(self.wikipedia, conll_path + '/wned-datasets/wikipedia/wikipedia.conll')
+        read_conll_file(self.tac2014, conll_path + '/tac-kbp/2014/tac-kbp-2014.conll')
 
 
 if __name__ == "__main__":

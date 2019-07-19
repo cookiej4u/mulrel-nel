@@ -149,7 +149,8 @@ if __name__ == "__main__":
                     ('aquaint', conll.aquaint),
                     ('ace2004', conll.ace2004),
                     ('clueweb', conll.clueweb),
-                    ('wikipedia', conll.wikipedia)
+                    ('wikipedia', conll.wikipedia),
+                    ('tackbp2014', conll.tac2014)
                     ]
 
     if args.mode == 'train':
