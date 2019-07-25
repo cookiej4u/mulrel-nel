@@ -8,7 +8,8 @@ def read_csv_file(path):
     with open(path, 'r', encoding='utf8') as f:
         for line in f:
             comps = line.strip().split('\t')
-            doc_name = comps[0] + ' ' + comps[1]
+            # [TODO] store query info
+            doc_name = comps[0] + ' ' + comps[0]
             mention = comps[2]
             lctx = comps[3]
             rctx = comps[4]
@@ -73,6 +74,7 @@ def read_conll_file(data, path):
     # merge with data
     # also deal with overlapping mentions that were removed in conll files
     rmpunc = re.compile('[\W]+')
+    empty_docs = []
     for doc_name, content in data.items():
         conll_doc = conll.get(doc_name.split()[0], None)
 
@@ -92,8 +94,13 @@ def read_conll_file(data, path):
             for i in m_id_to_del:
                 del data[doc_name][i]
 
-        content[0]['conll_doc'] = conll_doc
-
+        if len(data[doc_name]) == 0:
+            empty_docs.append(doc_name)
+        else:
+            data[doc_name][0]['conll_doc'] = conll_doc
+    for doc_name in empty_docs:
+        print(doc_name, 'has no mentions. Removing it')
+        del data[doc_name]
     return data
 
 
@@ -249,11 +256,28 @@ class CoNLLDataset:
 
 
 if __name__ == "__main__":
-    path = '/datastore/ple/workspace/nel/preprocess_data/data/generated/test_train_data/'
-    conll_path = '/datastore/ple/workspace/nel/preprocess_data/data/basic_data/test_datasets/'
-    person_path = '/datastore/ple/workspace/nel/preprocess_data/data/basic_data/p_e_m_data/persons.txt'
+    path = 'data/generated/test_train_data/'
+    conll_path = 'data/basic_data/test_datasets/'
+    person_path = 'data/basic_data/p_e_m_data/persons.txt'
 
-    dataset = CoNLLDataset(path, person_path, conll_path)
+    conll = CoNLLDataset(path, person_path, conll_path)
     # from pprint import pprint
-    # pprint(dataset.ace2004, width=200)
+    # pprint(conll.tac2014, width=200)
 
+    dev_datasets = [('aida-A', conll.testA),
+                    ('aida-B', conll.testB),
+                    ('msnbc', conll.msnbc),
+                    ('aquaint', conll.aquaint),
+                    ('ace2004', conll.ace2004),
+                    ('clueweb', conll.clueweb),
+                    ('wikipedia', conll.wikipedia),
+                    ('tackbp2014', conll.tac2014)
+                    ]
+    for di, (dname, _) in enumerate(dev_datasets):
+        dev_set = dev_datasets[di][1]
+        predictions = { doc_name: [ { 'pred': c['candidates'][0] if len(c['candidates']) > 0 else 'NIL' } for c in content ]
+            for doc_name, content in dev_set.items() }
+        print(dname, '#doc:', len(dev_set))
+        print(dname, '#mentions/doc:',
+                sum(len(content) for content in dev_set.values()) / len(dev_set))
+        print(dname, 'micro F1: ' + str(eval(dev_datasets[di][1], predictions)))
